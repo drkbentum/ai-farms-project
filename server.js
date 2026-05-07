@@ -8,8 +8,7 @@ const { exec } = require('child_process');
 
 const app = express();
 const PORT = 3000;
-const EXCEL_FILE = 'C:\\Users\\kinge\\Documents\\ai-farms-project\\enrollments.xlsx';
-const PICTURES_DIR = 'C:\\Users\\kinge\\Documents\\ai-farms-project\\pictures';
+const EXCEL_FILE = path.join(__dirname, 'enrollments.xlsx');
 
 app.use(cors());
 app.use(express.json());
@@ -18,10 +17,11 @@ app.use(express.static(__dirname));
 
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-        if (!fs.existsSync(PICTURES_DIR)) {
-            fs.mkdirSync(PICTURES_DIR, { recursive: true });
+        const uploadDir = path.join(__dirname, 'pictures');
+        if (!fs.existsSync(uploadDir)) {
+            fs.mkdirSync(uploadDir, { recursive: true });
         }
-        cb(null, PICTURES_DIR);
+        cb(null, uploadDir);
     },
     filename: (req, file, cb) => {
         cb(null, Date.now() + '-' + file.originalname);
@@ -137,7 +137,6 @@ app.post('/api/enroll', upload.single('muzzlePhoto'), (req, res) => {
 
 app.listen(PORT, () => {
     console.log(`AI Farms Project server running at http://localhost:${PORT}`);
-    console.log(`Enrollment data saved to: ${EXCEL_FILE}`);
-    console.log(`Photos saved to: ${PICTURES_DIR}`);
+    console.log(`Enrollment data will be saved to: ${EXCEL_FILE}`);
     exec(`start http://localhost:${PORT}/enroll.html`);
 });
