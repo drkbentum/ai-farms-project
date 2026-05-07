@@ -11,17 +11,24 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const EXCEL_FILE = path.join(__dirname, 'enrollments.xlsx');
 
-const transporter = nodemailer.createTransport({
+const transporter = process.env.EMAIL_USER && process.env.EMAIL_PASS ? nodemailer.createTransport({
     host: process.env.EMAIL_HOST || 'smtp.gmail.com',
-    port: process.env.EMAIL_PORT || 587,
-    secure: process.env.EMAIL_PORT === '465',
+    port: parseInt(process.env.EMAIL_PORT || '587'),
+    secure: false,
     auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS
     }
-});
+}) : null;
 
 const EMAIL_TO = process.env.EMAIL_TO || 'kbentum8786@tuskegee.edu';
+
+if (transporter) {
+    console.log('Email transporter configured. Sending to:', EMAIL_TO);
+} else {
+    console.log('WARNING: EMAIL_USER or EMAIL_PASS not set. Emails will not be sent.');
+    console.log('Set these environment variables on Render to enable email forwarding.');
+}
 
 app.use(cors());
 app.use(express.json());
@@ -126,7 +133,10 @@ function appendToExcel(data) {
 }
 
 function sendEnrollmentEmail(data) {
-    if (!transporter) return;
+    if (!transporter) {
+        console.error('Email not sent: transporter not configured. Check EMAIL_USER and EMAIL_PASS env vars.');
+        return;
+    }
 
     const emailHtml = `
         <h2>New Animal Enrollment</h2>
@@ -146,20 +156,39 @@ function sendEnrollmentEmail(data) {
     `;
 
     const mailOptions = {
-        from: process.env.EMAIL_USER,
+        from: `"AI Farms Project" <${process.env.EMAIL_USER}>`,
         to: EMAIL_TO,
         subject: `New Enrollment: ${data.fullName} - ${data.animalTag}`,
         html: emailHtml
     };
 
+    console.log('Attempting to send email to:', EMAIL_TO);
+
     transporter.sendMail(mailOptions, (err, info) => {
         if (err) {
-            console.error('Email failed:', err.message);
+            console.error('Email FAILED:', err.message);
         } else {
-            console.log('Email sent:', info.messageId);
+            console.log('Email sent successfully. MessageId:', info.messageId);
         }
     });
 }
+
+app.get('/api/test-email', async (req, res) => {
+    if (!transporter) {
+        return res.json({ success: false, message: 'Email transporter not configured. Check EMAIL_USER and EMAIL_PASS.' });
+    }
+    try {
+        await transporter.sendMail({
+            from: `"AI Farms Project" <${process.env.EMAIL_USER}>`,
+            to: EMAIL_TO,
+            subject: 'Test Email',
+            html: '<h2>Test</h2><p>If you see this, email is working!</p>'
+        });
+        res.json({ success: true, message: `Test email sent to ${EMAIL_TO}` });
+    } catch (err) {
+        res.json({ success: false, message: err.message });
+    }
+});
 
 app.post('/api/enroll', upload.single('muzzlePhoto'), (req, res) => {
     try {
