@@ -5,25 +5,29 @@ const path = require('path');
 const XLSX = require('xlsx');
 const fs = require('fs');
 const nodemailer = require('nodemailer');
+const crypto = require('crypto');
 const { exec } = require('child_process');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const EXCEL_FILE = path.join(__dirname, 'enrollments.xlsx');
 
-const transporter = process.env.EMAIL_USER && process.env.EMAIL_PASS ? nodemailer.createTransport({
-    host: process.env.EMAIL_HOST || 'smtp.gmail.com',
-    port: parseInt(process.env.EMAIL_PORT || '587'),
-    secure: false,
-    auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS
-    }
-}) : null;
-
+let transporter = null;
 const EMAIL_TO = process.env.EMAIL_TO || 'kbentum@tuskegee.edu';
 
-if (transporter) {
+if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
+    transporter = nodemailer.createTransport({
+        host: process.env.EMAIL_HOST || 'smtp.gmail.com',
+        port: parseInt(process.env.EMAIL_PORT || '587'),
+        secure: false,
+        auth: {
+            user: process.env.EMAIL_USER,
+            pass: process.env.EMAIL_PASS
+        },
+        connectionTimeout: 8000,
+        greetingTimeout: 8000,
+        socketTimeout: 10000
+    });
     console.log('Email transporter configured. Sending to:', EMAIL_TO);
 } else {
     console.log('WARNING: EMAIL_USER or EMAIL_PASS not set. Emails will not be sent.');
@@ -186,18 +190,19 @@ function sendEnrollmentEmail(data, photoPath) {
 
 app.get('/api/test-email', async (req, res) => {
     if (!transporter) {
-        return res.json({ success: false, message: 'Email transporter not configured. Check EMAIL_USER and EMAIL_PASS.' });
+        return res.json({ success: false, message: 'Email transporter not configured. EMAIL_USER=' + (process.env.EMAIL_USER || 'NOT SET') + ', EMAIL_PASS=' + (process.env.EMAIL_PASS ? 'SET' : 'NOT SET') });
     }
     try {
-        await transporter.sendMail({
+        const info = await transporter.sendMail({
             from: `"AI Farms Project" <${process.env.EMAIL_USER}>`,
             to: EMAIL_TO,
-            subject: 'Test Email',
+            subject: 'Test Email from AI Farms',
             html: '<h2>Test</h2><p>If you see this, email is working!</p>'
         });
-        res.json({ success: true, message: `Test email sent to ${EMAIL_TO}` });
+        res.json({ success: true, message: `Test email sent to ${EMAIL_TO}`, messageId: info.messageId });
     } catch (err) {
-        res.json({ success: false, message: err.message });
+        console.error('Test email FAILED:', err);
+        res.json({ success: false, message: err.message, code: err.code, command: err.command });
     }
 });
 
@@ -224,6 +229,76 @@ app.post('/api/enroll', upload.single('muzzlePhoto'), (req, res) => {
         console.error('Error processing enrollment:', error);
         res.status(500).json({ success: false, message: error.message });
     }
+});
+
+const ADMIN_PASSWORD = 'ai-project26tu';
+const AUTH_SECRET = crypto.randomBytes(32).toString('hex');
+const AUTH_TOKEN = crypto.createHash('sha256').update(ADMIN_PASSWORD + AUTH_SECRET).digest('hex');
+
+function parseCookies(req) {
+    const header = req.headers.cookie;
+    if (!header) return {};
+    return header.split(';').reduce((acc, c) => {
+        const [k, ...v] = c.split('=');
+        acc[k.trim()] = v.join('=').trim();
+        return acc;
+    }, {});
+}
+
+function requireAuth(req, res, next) {
+    const cookies = parseCookies(req);
+    if (cookies.admin_token === AUTH_TOKEN) return next();
+    if (req.path === '/login') return next();
+    res.redirect('/enrolled/login');
+}
+
+app.get('/enrolled/login', (req, res) => {
+    const cookies = parseCookies(req);
+    if (cookies.admin_token === AUTH_TOKEN) return res.redirect('/enrolled');
+    res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Admin Login</title><style>body{font-family:Arial,sans-serif;background:#f5f5f5;display:flex;justify-content:center;align-items:center;height:100vh;margin:0}.login-box{background:#fff;padding:40px;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,.1);text-align:center;max-width:400px;width:90%}.login-box h1{color:#2c5f2d;margin-bottom:8px;font-size:24px}.login-box p{color:#666;margin-bottom:24px}.login-box input{width:100%;padding:12px;border:1px solid #ddd;border-radius:4px;font-size:16px;box-sizing:border-box;margin-bottom:16px}.login-box button{width:100%;padding:12px;background:#2c5f2d;color:#fff;border:none;border-radius:4px;font-size:16px;cursor:pointer}.login-box button:hover{background:#1e4520}.error{color:#c00;margin-bottom:12px}</style></head><body><div class="login-box"><h1>Enrolled Dashboard</h1><p>Enter password to access</p><form method="POST" action="/enrolled/login">${req.query.error ? '<div class="error">Wrong password</div>' : ''}<input type="password" name="password" placeholder="Password" required autofocus><button type="submit">Login</button></form></div></body></html>`);
+});
+
+app.post('/enrolled/login', (req, res) => {
+    if (req.body.password === ADMIN_PASSWORD) {
+        res.setHeader('Set-Cookie', `admin_token=${AUTH_TOKEN}; HttpOnly; Path=/; Max-Age=${86400 * 7}; SameSite=Lax`);
+        res.redirect('/enrolled');
+    } else {
+        res.redirect('/enrolled/login?error=1');
+    }
+});
+
+app.get('/enrolled/logout', (req, res) => {
+    res.setHeader('Set-Cookie', 'admin_token=; HttpOnly; Path=/; Max-Age=0');
+    res.redirect('/enrolled/login');
+});
+
+app.get('/enrolled/download', requireAuth, (req, res) => {
+    if (!fs.existsSync(EXCEL_FILE)) return res.status(404).send('No enrollments yet');
+    res.download(EXCEL_FILE, `enrollments_${new Date().toISOString().slice(0,10)}.xlsx`);
+});
+
+app.use('/enrolled', requireAuth);
+app.get('/enrolled', (req, res) => {
+    let rows = [];
+    if (fs.existsSync(EXCEL_FILE)) {
+        const wb = XLSX.readFile(EXCEL_FILE);
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+    }
+
+    const picsDir = path.join(__dirname, 'pictures');
+    let picFiles = [];
+    if (fs.existsSync(picsDir)) picFiles = fs.readdirSync(picsDir);
+
+    const tableRows = rows.map((r, i) => {
+        const filename = r['Muzzle Photo Upload - Photo Filename'];
+        const hasPhoto = filename && filename !== 'N/A' && picFiles.includes(filename);
+        return `<tr>${Object.values(r).map(v => `<td>${String(v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</td>`).join('')}<td>${hasPhoto ? `<a href="/pictures/${filename}" target="_blank"><img src="/pictures/${filename}" style="width:80px;height:60px;object-fit:cover;border-radius:4px;cursor:pointer" alt="Photo"></a>` : 'N/A'}</td></tr>`;
+    }).join('\n');
+
+    const headers = Object.keys(rows[0] || {}).concat(['Photo']);
+
+    res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Enrolled Dashboard - AI Farms</title><style>*{box-sizing:border-box}body{font-family:Arial,sans-serif;background:#f5f5f5;margin:0;padding:0}.header{background:#2c5f2d;color:#fff;padding:16px 24px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px}.header h1{margin:0;font-size:22px}.header a{color:#fff;text-decoration:none;background:rgba(255,255,255,.2);padding:8px 16px;border-radius:4px;font-size:14px}.header a:hover{background:rgba(255,255,255,.3)}.container{max-width:1400px;margin:0 auto;padding:16px}.stats{display:flex;gap:16px;margin-bottom:16px;flex-wrap:wrap}.stat-card{background:#fff;padding:16px 24px;border-radius:8px;box-shadow:0 1px 4px rgba(0,0,0,.1);flex:1;min-width:150px;text-align:center}.stat-card h3{margin:0 0 4px;color:#666;font-size:13px;text-transform:uppercase}.stat-card .num{font-size:28px;font-weight:700;color:#2c5f2d}.table-wrap{background:#fff;border-radius:8px;box-shadow:0 1px 4px rgba(0,0,0,.1);overflow-x:auto;padding:0}table{width:100%;border-collapse:collapse;font-size:13px;min-width:1200px}th{background:#2c5f2d;color:#fff;padding:10px 8px;text-align:left;white-space:nowrap;position:sticky;top:0;font-size:12px}td{padding:8px;border-bottom:1px solid #eee;vertical-align:middle}tr:hover{background:#f0f7f0}.empty{padding:48px;text-align:center;color:#999;font-size:18px}.empty p{margin:8px 0}.footer{text-align:center;padding:24px;color:#999;font-size:13px}@media(max-width:768px){.header h1{font-size:18px}.stat-card .num{font-size:22px}}</style></head><body><div class="header"><h1>Enrolled Dashboard</h1><div><a href="/enrolled/download">Download Excel</a><a href="/enrolled/logout" style="margin-left:8px">Logout</a></div></div><div class="container"><div class="stats"><div class="stat-card"><h3>Total Enrollments</h3><div class="num">${rows.length}</div></div><div class="stat-card"><h3>Photos Uploaded</h3><div class="num">${rows.filter(r => { const f = r['Muzzle Photo Upload - Photo Filename']; return f && f !== 'N/A'; }).length}</div></div><div class="stat-card"><h3>Pictures Folder</h3><div class="num">${picFiles.length}</div></div></div><div class="table-wrap">${rows.length ? `<table><thead><tr>${headers.map(h => `<th>${h.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</th>`).join('')}</tr></thead><tbody>${tableRows}</tbody></table>` : '<div class="empty"><p>No enrollments yet</p><p>Data will appear here once farmers submit the enrollment form.</p></div>'}</div></div><div class="footer">AI Farms Project &copy; ${new Date().getFullYear()}</div></body></html>`);
 });
 
 app.listen(PORT, () => {
