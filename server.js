@@ -6,6 +6,7 @@ const XLSX = require('xlsx');
 const fs = require('fs');
 const nodemailer = require('nodemailer');
 const crypto = require('crypto');
+const dns = require('dns');
 const { exec } = require('child_process');
 
 const app = express();
@@ -26,7 +27,8 @@ if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
         },
         connectionTimeout: 8000,
         greetingTimeout: 8000,
-        socketTimeout: 10000
+        socketTimeout: 10000,
+        lookup: (hostname, options, cb) => dns.lookup(hostname, { ...options, family: 4 }, cb)
     });
     console.log('Email transporter configured. Sending to:', EMAIL_TO);
 } else {
