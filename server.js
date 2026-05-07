@@ -19,15 +19,15 @@ const EMAIL_TO = process.env.EMAIL_TO || 'kbentum@tuskegee.edu';
 if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
     transporter = nodemailer.createTransport({
         host: process.env.EMAIL_HOST || 'smtp.gmail.com',
-        port: parseInt(process.env.EMAIL_PORT || '587'),
-        secure: false,
+        port: parseInt(process.env.EMAIL_PORT || '465'),
+        secure: process.env.EMAIL_PORT ? process.env.EMAIL_PORT === '465' : true,
         auth: {
             user: process.env.EMAIL_USER,
             pass: process.env.EMAIL_PASS
         },
-        connectionTimeout: 8000,
-        greetingTimeout: 8000,
-        socketTimeout: 10000,
+        connectionTimeout: 15000,
+        greetingTimeout: 15000,
+        socketTimeout: 20000,
         lookup: (hostname, options, cb) => dns.lookup(hostname, { ...options, family: 4 }, cb)
     });
     console.log('Email transporter configured. Sending to:', EMAIL_TO);
