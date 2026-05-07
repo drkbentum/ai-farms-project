@@ -1,0 +1,5 @@
+node_modules/
+ngrok.exe
+ngrok.log
+*.xlsx
+.env

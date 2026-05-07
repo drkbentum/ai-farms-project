@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enroll Animals - AI Farms Project</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container nav-container">
+            <a href="index.html" class="logo">AI Farms Project</a>
+            <button class="nav-toggle" id="navToggle" aria-label="Toggle navigation">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+            <ul class="nav-menu" id="navMenu">
+                <li><a href="index.html#about">About</a></li>
+                <li><a href="index.html#how-it-works">How It Works</a></li>
+                <li><a href="index.html#benefits">Benefits</a></li>
+                <li><a href="enroll.html" class="nav-cta active">Enroll Animals</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <section class="hero enroll-hero">
+        <div class="hero-bg"></div>
+        <div class="container hero-content">
+            <h1>Enroll Your Animals</h1>
+            <p class="subtitle">Join our research program and help advance cattle welfare</p>
+        </div>
+    </section>
+
+    <section class="section enroll-section">
+        <div class="container">
+            <div class="enrollment-banner">
+                <img src="fac.jpg" alt="Animal care guarantee" class="banner-image">
+                <p><strong>Farmers who enroll will have their animals cared for and fed for the entire duration of the project.</strong></p>
+            </div>
+
+            <form id="enrollForm" class="enroll-form" novalidate>
+                <div class="form-section">
+                    <h2>Farmer Information</h2>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="fullName">Full Name *</label>
+                            <input type="text" id="fullName" name="fullName" required placeholder="John Doe">
+                            <span class="error-message" id="fullNameError"></span>
+                        </div>
+                        <div class="form-group">
+                            <label for="email">Email Address *</label>
+                            <input type="email" id="email" name="email" required placeholder="john@example.com">
+                            <span class="error-message" id="emailError"></span>
+                        </div>
+                        <div class="form-group">
+                            <label for="phone">Phone Number *</label>
+                            <input type="tel" id="phone" name="phone" required placeholder="+1 (555) 123-4567">
+                            <span class="error-message" id="phoneError"></span>
+                        </div>
+                        <div class="form-group">
+                            <label for="farmName">Farm Name *</label>
+                            <input type="text" id="farmName" name="farmName" required placeholder="Green Valley Farm">
+                            <span class="error-message" id="farmNameError"></span>
+                        </div>
+                        <div class="form-group full-width">
+                            <label for="location">Farm Location *</label>
+                            <input type="text" id="location" name="location" required placeholder="City, State/Province">
+                            <span class="error-message" id="locationError"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <h2>Animal Information</h2>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="animalTag">Animal Tag/ID Number *</label>
+                            <input type="text" id="animalTag" name="animalTag" required placeholder="e.g., CATTLE-001">
+                            <span class="error-message" id="animalTagError"></span>
+                        </div>
+                        <div class="form-group">
+                            <label for="breed">Breed *</label>
+                            <select id="breed" name="breed" required>
+                                <option value="">Select Breed</option>
+                                <option value="angus">Angus</option>
+                                <option value="hereford">Hereford</option>
+                                <option value="holstein">Holstein</option>
+                                <option value="simmental">Simmental</option>
+                                <option value="charolais">Charolais</option>
+                                <option value="limousin">Limousin</option>
+                                <option value="jersey">Jersey</option>
+                                <option value="brahman">Brahman</option>
+                                <option value="other">Other</option>
+                            </select>
+                            <span class="error-message" id="breedError"></span>
+                        </div>
+                        <div class="form-group">
+                            <label for="age">Age (months) *</label>
+                            <input type="number" id="age" name="age" required min="1" max="240" placeholder="24">
+                            <span class="error-message" id="ageError"></span>
+                        </div>
+                        <div class="form-group">
+                            <label for="gender">Gender *</label>
+                            <select id="gender" name="gender" required>
+                                <option value="">Select Gender</option>
+                                <option value="bull">Bull</option>
+                                <option value="cow">Cow</option>
+                                <option value="heifer">Heifer</option>
+                                <option value="steer">Steer</option>
+                            </select>
+                            <span class="error-message" id="genderError"></span>
+                        </div>
+                        <div class="form-group">
+                            <label for="weight">Weight (kg) (Optional)</label>
+                            <input type="number" id="weight" name="weight" min="50" max="1500" placeholder="450">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <h2>Muzzle Photo Upload</h2>
+                    <p class="upload-description">Upload a clear photo of the animal's muzzle for biometric identification.</p>
+                    <div class="upload-area" id="uploadArea">
+                        <input type="file" id="muzzlePhoto" name="muzzlePhoto" accept="image/*" class="hidden">
+                        <label for="muzzlePhoto" class="upload-label">
+                            <img src="fac.jpg" alt="Upload muzzle photo" class="upload-preview-image">
+                            <span>Click to upload or drag and drop</span>
+                            <span class="upload-hint">PNG, JPG or JPEG (max 5MB)</span>
+                        </label>
+                        <div class="image-preview" id="imagePreview" style="display: none;">
+                            <img id="previewImg" src="" alt="Muzzle photo preview">
+                            <button type="button" class="remove-image" id="removeImage">Remove</button>
+                        </div>
+                    </div>
+                    <span class="error-message" id="muzzlePhotoError"></span>
+                </div>
+
+                <button type="submit" class="btn btn-primary btn-large btn-full">Submit Enrollment</button>
+            </form>
+        </div>
+    </section>
+
+    <div class="modal" id="successModal">
+        <div class="modal-content">
+            <div class="modal-icon">
+                <img src="mc.jpg" alt="Success" class="modal-image">
+            </div>
+            <h2>Enrollment Submitted!</h2>
+            <p>Thank you for enrolling your animal in the AI Farms Project. We will review your submission and contact you shortly.</p>
+            <p class="modal-incentive">Your animal will be cared for and fed for the entire duration of the project.</p>
+            <button class="btn btn-primary" id="closeModal">Close</button>
+        </div>
+    </div>
+
+    <footer class="footer">
+        <div class="container footer-content">
+            <div class="footer-section">
+                <h3>AI Farms Project</h3>
+                <p>Integrating AI and biometric technology for better cattle welfare and farm management.</p>
+            </div>
+            <div class="footer-section">
+                <h3>Quick Links</h3>
+                <ul>
+                    <li><a href="index.html#about">About</a></li>
+                    <li><a href="index.html#how-it-works">How It Works</a></li>
+                    <li><a href="index.html#benefits">Benefits</a></li>
+                    <li><a href="enroll.html">Enroll Animals</a></li>
+                </ul>
+            </div>
+            <div class="footer-section">
+                <h3>Contact</h3>
+                <p>Email: <a href="mailto:kbentum@tuskegee.edu">kbentum@tuskegee.edu</a></p>
+                <p>Email: <a href="mailto:oboldentiller@tuskegee.edu">oboldentiller@tuskegee.edu</a></p>
+                <p>Phone: 334-727-8403</p>
+                <p>Phone: 334-877-7728</p>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <div class="container">
+                <p>&copy; 2026 AI Farms Project. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="js/script.js"></script>
+</body>
+</html>
