@@ -4,36 +4,25 @@ const multer = require('multer');
 const path = require('path');
 const XLSX = require('xlsx');
 const fs = require('fs');
-const nodemailer = require('nodemailer');
 const crypto = require('crypto');
-const dns = require('dns');
+const https = require('https');
 const { exec } = require('child_process');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const EXCEL_FILE = path.join(__dirname, 'enrollments.xlsx');
 
-let transporter = null;
+const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY;
 const EMAIL_TO = process.env.EMAIL_TO || 'kbentum@tuskegee.edu';
+const EMAIL_FROM = process.env.EMAIL_FROM || 'dockbentum2@gmail.com';
 
-if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
-    transporter = nodemailer.createTransport({
-        host: process.env.EMAIL_HOST || 'smtp.gmail.com',
-        port: parseInt(process.env.EMAIL_PORT || '465'),
-        secure: process.env.EMAIL_PORT ? process.env.EMAIL_PORT === '465' : true,
-        auth: {
-            user: process.env.EMAIL_USER,
-            pass: process.env.EMAIL_PASS
-        },
-        connectionTimeout: 15000,
-        greetingTimeout: 15000,
-        socketTimeout: 20000,
-        lookup: (hostname, options, cb) => dns.lookup(hostname, { ...options, family: 4 }, cb)
-    });
-    console.log('Email transporter configured. Sending to:', EMAIL_TO);
+if (SENDGRID_API_KEY) {
+    console.log('SendGrid email configured. Sending to:', EMAIL_TO);
 } else {
-    console.log('WARNING: EMAIL_USER or EMAIL_PASS not set. Emails will not be sent.');
-    console.log('Set these environment variables on Render to enable email forwarding.');
+    console.log('WARNING: SENDGRID_API_KEY not set. Emails will not be sent.');
+    console.log('1. Sign up at https://signup.sendgrid.com (free, 100 emails/day)');
+    console.log('2. Create an API key with "Mail Send" permission');
+    console.log('3. Set SENDGRID_API_KEY on Render environment variables');
 }
 
 app.use(cors());
@@ -138,9 +127,40 @@ function appendToExcel(data) {
     XLSX.writeFile(workbook, EXCEL_FILE);
 }
 
+function sendViaSendGrid(payload) {
+    return new Promise((resolve, reject) => {
+        const body = JSON.stringify(payload);
+        const options = {
+            hostname: 'api.sendgrid.com',
+            path: '/v3/mail/send',
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${SENDGRID_API_KEY}`,
+                'Content-Type': 'application/json',
+                'Content-Length': Buffer.byteLength(body)
+            }
+        };
+        const req = https.request(options, (res) => {
+            let data = '';
+            res.on('data', (chunk) => data += chunk);
+            res.on('end', () => {
+                if (res.statusCode >= 200 && res.statusCode < 300) {
+                    resolve({ success: true, messageId: data });
+                } else {
+                    reject(new Error(`SendGrid API ${res.statusCode}: ${data}`));
+                }
+            });
+        });
+        req.on('error', reject);
+        req.setTimeout(15000, () => { req.destroy(); reject(new Error('Request timeout')); });
+        req.write(body);
+        req.end();
+    });
+}
+
 function sendEnrollmentEmail(data, photoPath) {
-    if (!transporter) {
-        console.error('Email not sent: transporter not configured. Check EMAIL_USER and EMAIL_PASS env vars.');
+    if (!SENDGRID_API_KEY) {
+        console.error('Email not sent: SENDGRID_API_KEY not set.');
         return;
     }
 
@@ -162,49 +182,47 @@ function sendEnrollmentEmail(data, photoPath) {
         <p><em>Submitted: ${new Date().toLocaleString()}</em></p>
     `;
 
-    const mailOptions = {
-        from: `"AI Farms Project" <${process.env.EMAIL_USER}>`,
-        to: EMAIL_TO,
+    const payload = {
+        personalizations: [{ to: [{ email: EMAIL_TO }] }],
+        from: { email: EMAIL_FROM, name: 'AI Farms Project' },
         subject: `New Enrollment: ${data.fullName} - ${data.animalTag}`,
-        html: emailHtml
+        content: [{ type: 'text/html', value: emailHtml }]
     };
 
     if (photoPath && fs.existsSync(photoPath)) {
-        mailOptions.attachments = [
-            {
-                filename: data.photoFilename,
-                path: photoPath,
-                cid: 'muzzlePhoto'
-            }
-        ];
+        const photoData = fs.readFileSync(photoPath);
+        payload.attachments = [{
+            content: photoData.toString('base64'),
+            filename: data.photoFilename,
+            type: 'image/jpeg',
+            disposition: 'attachment'
+        }];
     }
 
-    console.log('Attempting to send email to:', EMAIL_TO);
+    console.log('Sending email via SendGrid to:', EMAIL_TO);
 
-    transporter.sendMail(mailOptions, (err, info) => {
-        if (err) {
-            console.error('Email FAILED:', err.message);
-        } else {
-            console.log('Email sent successfully. MessageId:', info.messageId);
-        }
+    sendViaSendGrid(payload).then(result => {
+        console.log('Email sent successfully:', result.messageId);
+    }).catch(err => {
+        console.error('Email FAILED:', err.message);
     });
 }
 
 app.get('/api/test-email', async (req, res) => {
-    if (!transporter) {
-        return res.json({ success: false, message: 'Email transporter not configured. EMAIL_USER=' + (process.env.EMAIL_USER || 'NOT SET') + ', EMAIL_PASS=' + (process.env.EMAIL_PASS ? 'SET' : 'NOT SET') });
+    if (!SENDGRID_API_KEY) {
+        return res.json({ success: false, message: 'SENDGRID_API_KEY not set. Sign up at https://signup.sendgrid.com and create an API key.' });
     }
     try {
-        const info = await transporter.sendMail({
-            from: `"AI Farms Project" <${process.env.EMAIL_USER}>`,
-            to: EMAIL_TO,
+        const result = await sendViaSendGrid({
+            personalizations: [{ to: [{ email: EMAIL_TO }] }],
+            from: { email: EMAIL_FROM, name: 'AI Farms Project' },
             subject: 'Test Email from AI Farms',
-            html: '<h2>Test</h2><p>If you see this, email is working!</p>'
+            content: [{ type: 'text/html', value: '<h2>Test</h2><p>Email is working!</p>' }]
         });
-        res.json({ success: true, message: `Test email sent to ${EMAIL_TO}`, messageId: info.messageId });
+        res.json({ success: true, message: `Test email sent to ${EMAIL_TO}`, messageId: result.messageId });
     } catch (err) {
         console.error('Test email FAILED:', err);
-        res.json({ success: false, message: err.message, code: err.code, command: err.command });
+        res.json({ success: false, message: err.message });
     }
 });
 
