@@ -21,7 +21,7 @@ const transporter = process.env.EMAIL_USER && process.env.EMAIL_PASS ? nodemaile
     }
 }) : null;
 
-const EMAIL_TO = process.env.EMAIL_TO || 'kbentum8786@tuskegee.edu';
+const EMAIL_TO = process.env.EMAIL_TO || 'kbentum@tuskegee.edu';
 
 if (transporter) {
     console.log('Email transporter configured. Sending to:', EMAIL_TO);
