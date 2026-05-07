@@ -132,7 +132,7 @@ function appendToExcel(data) {
     XLSX.writeFile(workbook, EXCEL_FILE);
 }
 
-function sendEnrollmentEmail(data) {
+function sendEnrollmentEmail(data, photoPath) {
     if (!transporter) {
         console.error('Email not sent: transporter not configured. Check EMAIL_USER and EMAIL_PASS env vars.');
         return;
@@ -151,6 +151,7 @@ function sendEnrollmentEmail(data) {
             <tr><td><strong>Age</strong></td><td>${data.age} months</td></tr>
             <tr><td><strong>Gender</strong></td><td>${data.gender}</td></tr>
             <tr><td><strong>Weight</strong></td><td>${data.weight || 'N/A'} kg</td></tr>
+            <tr><td><strong>Muzzle Photo</strong></td><td>${data.photoFilename ? 'Attached' : 'Not provided'}</td></tr>
         </table>
         <p><em>Submitted: ${new Date().toLocaleString()}</em></p>
     `;
@@ -161,6 +162,16 @@ function sendEnrollmentEmail(data) {
         subject: `New Enrollment: ${data.fullName} - ${data.animalTag}`,
         html: emailHtml
     };
+
+    if (photoPath && fs.existsSync(photoPath)) {
+        mailOptions.attachments = [
+            {
+                filename: data.photoFilename,
+                path: photoPath,
+                cid: 'muzzlePhoto'
+            }
+        ];
+    }
 
     console.log('Attempting to send email to:', EMAIL_TO);
 
@@ -206,7 +217,7 @@ app.post('/api/enroll', upload.single('muzzlePhoto'), (req, res) => {
         appendToExcel(data);
         console.log('Enrollment saved to:', EXCEL_FILE);
 
-        sendEnrollmentEmail(data);
+        sendEnrollmentEmail(data, req.file ? req.file.path : null);
 
         res.json({ success: true, message: 'Enrollment submitted successfully' });
     } catch (error) {
