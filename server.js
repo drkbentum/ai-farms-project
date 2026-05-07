@@ -6,6 +6,7 @@ const XLSX = require('xlsx');
 const fs = require('fs');
 const crypto = require('crypto');
 const https = require('https');
+const archiver = require('archiver');
 const { exec } = require('child_process');
 
 const app = express();
@@ -297,6 +298,24 @@ app.get('/enrolled/download', requireAuth, (req, res) => {
     res.download(EXCEL_FILE, `enrollments_${new Date().toISOString().slice(0,10)}.xlsx`);
 });
 
+app.get('/enrolled/download-images', requireAuth, (req, res) => {
+    const picsDir = path.join(__dirname, 'pictures');
+    if (!fs.existsSync(picsDir)) return res.status(404).send('No images folder');
+
+    const files = fs.readdirSync(picsDir).filter(f => /\.(jpg|jpeg|png|gif|webp)$/i.test(f));
+    if (files.length === 0) return res.status(404).send('No images found');
+
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="muzzle_photos_${new Date().toISOString().slice(0,10)}.zip"`);
+
+    const archive = archiver('zip', { zlib: { level: 5 } });
+    archive.on('error', err => { throw err; });
+    archive.pipe(res);
+
+    files.forEach(f => archive.file(path.join(picsDir, f), { name: f }));
+    archive.finalize();
+});
+
 app.use('/enrolled', requireAuth);
 app.get('/enrolled', (req, res) => {
     let rows = [];
@@ -313,12 +332,16 @@ app.get('/enrolled', (req, res) => {
     const tableRows = rows.map((r, i) => {
         const filename = r['Muzzle Photo Upload - Photo Filename'];
         const hasPhoto = filename && filename !== 'N/A' && picFiles.includes(filename);
-        return `<tr>${Object.values(r).map(v => `<td>${String(v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</td>`).join('')}<td>${hasPhoto ? `<a href="/pictures/${filename}" target="_blank"><img src="/pictures/${filename}" style="width:80px;height:60px;object-fit:cover;border-radius:4px;cursor:pointer" alt="Photo"></a>` : 'N/A'}</td></tr>`;
+        const vals = Object.values(r).map(v => `<td>${String(v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</td>`).join('');
+        const photoCell = hasPhoto
+            ? `<td><div style="display:flex;flex-direction:column;align-items:center;gap:4px"><a href="/pictures/${filename}" target="_blank"><img src="/pictures/${filename}" style="width:80px;height:60px;object-fit:cover;border-radius:4px;cursor:pointer" alt="Photo"></a><a href="/pictures/${filename}" download style="font-size:11px;color:#2c5f2d;text-decoration:none;border:1px solid #2c5f2d;padding:2px 8px;border-radius:3px">Download</a></div></td>`
+            : '<td>N/A</td>';
+        return `<tr>${vals}${photoCell}</tr>`;
     }).join('\n');
 
     const headers = Object.keys(rows[0] || {}).concat(['Photo']);
 
-    res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Enrolled Dashboard - AI Farms</title><style>*{box-sizing:border-box}body{font-family:Arial,sans-serif;background:#f5f5f5;margin:0;padding:0}.header{background:#2c5f2d;color:#fff;padding:16px 24px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px}.header h1{margin:0;font-size:22px}.header a{color:#fff;text-decoration:none;background:rgba(255,255,255,.2);padding:8px 16px;border-radius:4px;font-size:14px}.header a:hover{background:rgba(255,255,255,.3)}.container{max-width:1400px;margin:0 auto;padding:16px}.stats{display:flex;gap:16px;margin-bottom:16px;flex-wrap:wrap}.stat-card{background:#fff;padding:16px 24px;border-radius:8px;box-shadow:0 1px 4px rgba(0,0,0,.1);flex:1;min-width:150px;text-align:center}.stat-card h3{margin:0 0 4px;color:#666;font-size:13px;text-transform:uppercase}.stat-card .num{font-size:28px;font-weight:700;color:#2c5f2d}.table-wrap{background:#fff;border-radius:8px;box-shadow:0 1px 4px rgba(0,0,0,.1);overflow-x:auto;padding:0}table{width:100%;border-collapse:collapse;font-size:13px;min-width:1200px}th{background:#2c5f2d;color:#fff;padding:10px 8px;text-align:left;white-space:nowrap;position:sticky;top:0;font-size:12px}td{padding:8px;border-bottom:1px solid #eee;vertical-align:middle}tr:hover{background:#f0f7f0}.empty{padding:48px;text-align:center;color:#999;font-size:18px}.empty p{margin:8px 0}.footer{text-align:center;padding:24px;color:#999;font-size:13px}@media(max-width:768px){.header h1{font-size:18px}.stat-card .num{font-size:22px}}</style></head><body><div class="header"><h1>Enrolled Dashboard</h1><div><a href="/enrolled/download">Download Excel</a><a href="/enrolled/logout" style="margin-left:8px">Logout</a></div></div><div class="container"><div class="stats"><div class="stat-card"><h3>Total Enrollments</h3><div class="num">${rows.length}</div></div><div class="stat-card"><h3>Photos Uploaded</h3><div class="num">${rows.filter(r => { const f = r['Muzzle Photo Upload - Photo Filename']; return f && f !== 'N/A'; }).length}</div></div><div class="stat-card"><h3>Pictures Folder</h3><div class="num">${picFiles.length}</div></div></div><div class="table-wrap">${rows.length ? `<table><thead><tr>${headers.map(h => `<th>${h.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</th>`).join('')}</tr></thead><tbody>${tableRows}</tbody></table>` : '<div class="empty"><p>No enrollments yet</p><p>Data will appear here once farmers submit the enrollment form.</p></div>'}</div></div><div class="footer">AI Farms Project &copy; ${new Date().getFullYear()}</div></body></html>`);
+    res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Enrolled Dashboard - AI Farms</title><style>*{box-sizing:border-box}body{font-family:Arial,sans-serif;background:#f5f5f5;margin:0;padding:0}.header{background:#2c5f2d;color:#fff;padding:16px 24px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px}.header h1{margin:0;font-size:22px}.header a{color:#fff;text-decoration:none;background:rgba(255,255,255,.2);padding:8px 16px;border-radius:4px;font-size:14px}.header a:hover{background:rgba(255,255,255,.3)}.container{max-width:1400px;margin:0 auto;padding:16px}.stats{display:flex;gap:16px;margin-bottom:16px;flex-wrap:wrap}.stat-card{background:#fff;padding:16px 24px;border-radius:8px;box-shadow:0 1px 4px rgba(0,0,0,.1);flex:1;min-width:150px;text-align:center}.stat-card h3{margin:0 0 4px;color:#666;font-size:13px;text-transform:uppercase}.stat-card .num{font-size:28px;font-weight:700;color:#2c5f2d}.actions{display:flex;gap:12px;flex-wrap:wrap}.actions a{color:#fff;text-decoration:none;background:rgba(255,255,255,.2);padding:8px 16px;border-radius:4px;font-size:14px}.actions a:hover{background:rgba(255,255,255,.3)}.table-wrap{background:#fff;border-radius:8px;box-shadow:0 1px 4px rgba(0,0,0,.1);overflow-x:auto;padding:0}table{width:100%;border-collapse:collapse;font-size:13px;min-width:1200px}th{background:#2c5f2d;color:#fff;padding:10px 8px;text-align:left;white-space:nowrap;position:sticky;top:0;font-size:12px}td{padding:8px;border-bottom:1px solid #eee;vertical-align:middle}tr:hover{background:#f0f7f0}.empty{padding:48px;text-align:center;color:#999;font-size:18px}.empty p{margin:8px 0}.footer{text-align:center;padding:24px;color:#999;font-size:13px}@media(max-width:768px){.header h1{font-size:18px}.stat-card .num{font-size:22px}}</style></head><body><div class="header"><h1>Enrolled Dashboard</h1><div class="actions"><a href="/enrolled/download">Download Excel</a>${picFiles.length ? '<a href="/enrolled/download-images">Download All Images (ZIP)</a>' : ''}<a href="/enrolled/logout">Logout</a></div></div><div class="container"><div class="stats"><div class="stat-card"><h3>Total Enrollments</h3><div class="num">${rows.length}</div></div><div class="stat-card"><h3>Photos Uploaded</h3><div class="num">${rows.filter(r => { const f = r['Muzzle Photo Upload - Photo Filename']; return f && f !== 'N/A'; }).length}</div></div><div class="stat-card"><h3>Pictures Folder</h3><div class="num">${picFiles.length}</div></div></div><div class="table-wrap">${rows.length ? `<table><thead><tr>${headers.map(h => `<th>${h.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</th>`).join('')}</tr></thead><tbody>${tableRows}</tbody></table>` : '<div class="empty"><p>No enrollments yet</p><p>Data will appear here once farmers submit the enrollment form.</p></div>'}</div></div><div class="footer">AI Farms Project &copy; ${new Date().getFullYear()}</div></body></html>`);
 });
 
 app.listen(PORT, () => {
