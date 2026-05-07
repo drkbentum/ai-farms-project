@@ -3,3 +3,4 @@ ngrok.exe
 ngrok.log
 *.xlsx
 .env
+pictures/

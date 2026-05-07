@@ -4,11 +4,24 @@ const multer = require('multer');
 const path = require('path');
 const XLSX = require('xlsx');
 const fs = require('fs');
+const nodemailer = require('nodemailer');
 const { exec } = require('child_process');
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 const EXCEL_FILE = path.join(__dirname, 'enrollments.xlsx');
+
+const transporter = nodemailer.createTransport({
+    host: process.env.EMAIL_HOST || 'smtp.gmail.com',
+    port: process.env.EMAIL_PORT || 587,
+    secure: process.env.EMAIL_PORT === '465',
+    auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS
+    }
+});
+
+const EMAIL_TO = process.env.EMAIL_TO || 'kbentum8786@tuskegee.edu';
 
 app.use(cors());
 app.use(express.json());
@@ -112,6 +125,42 @@ function appendToExcel(data) {
     XLSX.writeFile(workbook, EXCEL_FILE);
 }
 
+function sendEnrollmentEmail(data) {
+    if (!transporter) return;
+
+    const emailHtml = `
+        <h2>New Animal Enrollment</h2>
+        <table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse;">
+            <tr><td><strong>Farmer Name</strong></td><td>${data.fullName}</td></tr>
+            <tr><td><strong>Email</strong></td><td>${data.email}</td></tr>
+            <tr><td><strong>Phone</strong></td><td>${data.phone}</td></tr>
+            <tr><td><strong>Farm Name</strong></td><td>${data.farmName}</td></tr>
+            <tr><td><strong>Farm Location</strong></td><td>${data.location}</td></tr>
+            <tr><td><strong>Animal Tag</strong></td><td>${data.animalTag}</td></tr>
+            <tr><td><strong>Breed</strong></td><td>${data.breed}</td></tr>
+            <tr><td><strong>Age</strong></td><td>${data.age} months</td></tr>
+            <tr><td><strong>Gender</strong></td><td>${data.gender}</td></tr>
+            <tr><td><strong>Weight</strong></td><td>${data.weight || 'N/A'} kg</td></tr>
+        </table>
+        <p><em>Submitted: ${new Date().toLocaleString()}</em></p>
+    `;
+
+    const mailOptions = {
+        from: process.env.EMAIL_USER,
+        to: EMAIL_TO,
+        subject: `New Enrollment: ${data.fullName} - ${data.animalTag}`,
+        html: emailHtml
+    };
+
+    transporter.sendMail(mailOptions, (err, info) => {
+        if (err) {
+            console.error('Email failed:', err.message);
+        } else {
+            console.log('Email sent:', info.messageId);
+        }
+    });
+}
+
 app.post('/api/enroll', upload.single('muzzlePhoto'), (req, res) => {
     try {
         console.log('Received enrollment request');
@@ -127,6 +176,8 @@ app.post('/api/enroll', upload.single('muzzlePhoto'), (req, res) => {
 
         appendToExcel(data);
         console.log('Enrollment saved to:', EXCEL_FILE);
+
+        sendEnrollmentEmail(data);
 
         res.json({ success: true, message: 'Enrollment submitted successfully' });
     } catch (error) {
