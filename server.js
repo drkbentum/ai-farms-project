@@ -11,7 +11,10 @@ const { exec } = require('child_process');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const EXCEL_FILE = path.join(__dirname, 'enrollments.xlsx');
+const DATA_DIR = process.env.RENDER
+    ? __dirname
+    : "C:\\Users\\kinge\\OneDrive - Tuskegee University\\Postdoc\\Research\\Data";
+const EXCEL_FILE = path.join(DATA_DIR, 'enrollments.xlsx');
 
 const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY;
 const EMAIL_TO = process.env.EMAIL_TO || 'kbentum@tuskegee.edu';
@@ -33,7 +36,7 @@ app.use(express.static(__dirname));
 
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-        const uploadDir = path.join(__dirname, 'pictures');
+        const uploadDir = path.join(DATA_DIR, 'pictures');
         if (!fs.existsSync(uploadDir)) {
             fs.mkdirSync(uploadDir, { recursive: true });
         }
@@ -299,7 +302,7 @@ app.get('/enrolled/download', requireAuth, (req, res) => {
 });
 
 app.get('/enrolled/download-images', requireAuth, (req, res) => {
-    const picsDir = path.join(__dirname, 'pictures');
+    const picsDir = path.join(DATA_DIR, 'pictures');
     if (!fs.existsSync(picsDir)) return res.status(404).send('No images folder');
 
     const files = fs.readdirSync(picsDir).filter(f => /\.(jpg|jpeg|png|gif|webp)$/i.test(f));
@@ -325,7 +328,7 @@ app.get('/enrolled', (req, res) => {
         rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
     }
 
-    const picsDir = path.join(__dirname, 'pictures');
+    const picsDir = path.join(DATA_DIR, 'pictures');
     let picFiles = [];
     if (fs.existsSync(picsDir)) picFiles = fs.readdirSync(picsDir);
 
