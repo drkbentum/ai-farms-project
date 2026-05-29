@@ -112,8 +112,38 @@
                             <span class="error-message" id="genderError"></span>
                         </div>
                         <div class="form-group">
-                            <label for="weight">Weight (kg) (Optional)</label>
+                            <label for="weight">Weight (pounds)</label>
                             <input type="number" id="weight" name="weight" min="50" max="1500" placeholder="450">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <h2>Animal's Health Records</h2>
+                    <div class="form-grid">
+                        <div class="form-group full-width">
+                            <label for="vaccinationRecords">Vaccination Records</label>
+                            <textarea id="vaccinationRecords" name="vaccinationRecords" rows="3" placeholder="List vaccinations, dates, and any notes"></textarea>
+                        </div>
+                        <div class="form-group full-width">
+                            <label for="dewormingRecords">Deworming Records</label>
+                            <textarea id="dewormingRecords" name="dewormingRecords" rows="3" placeholder="List deworming treatments, dates, and any notes"></textarea>
+                        </div>
+                        <div class="form-group full-width">
+                            <label>Currently on any antibiotic?</label>
+                            <div class="radio-group">
+                                <label class="radio-label">
+                                    <input type="radio" name="antibioticStatus" value="yes" onchange="document.getElementById('antibioticDetails').style.display='block'">
+                                    Yes
+                                </label>
+                                <label class="radio-label">
+                                    <input type="radio" name="antibioticStatus" value="no" onchange="document.getElementById('antibioticDetails').style.display='none'" checked>
+                                    No
+                                </label>
+                            </div>
+                            <div id="antibioticDetails" style="display:none; margin-top:8px;">
+                                <textarea id="antibioticDetailsInput" name="antibioticDetails" rows="2" placeholder="Please specify the antibiotic name, dosage, and duration"></textarea>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -158,22 +188,6 @@
             <div class="footer-section">
                 <h3>AI Farms Project</h3>
                 <p>Integrating AI and biometric technology for better cattle welfare and farm management.</p>
-            </div>
-            <div class="footer-section">
-                <h3>Quick Links</h3>
-                <ul>
-                    <li><a href="index.html#about">About</a></li>
-                    <li><a href="index.html#how-it-works">How It Works</a></li>
-                    <li><a href="index.html#benefits">Benefits</a></li>
-                    <li><a href="enroll.html">Enroll Animals</a></li>
-                </ul>
-            </div>
-            <div class="footer-section">
-                <h3>Contact</h3>
-                <p>Email: <a href="mailto:kbentum@tuskegee.edu">kbentum@tuskegee.edu</a></p>
-                <p>Email: <a href="mailto:oboldentiller@tuskegee.edu">oboldentiller@tuskegee.edu</a></p>
-                <p>Phone: 334-727-8403</p>
-                <p>Phone: 334-877-7728</p>
             </div>
         </div>
         <div class="footer-bottom">
